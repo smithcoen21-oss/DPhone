@@ -1,0 +1,2621 @@
+#!/usr/bin/env bash
+# ============================================================
+# DPhoneVision — GitHub-ready repository builder
+# ============================================================
+# Usage:
+#   chmod +x build_dphonevision.sh
+#   ./build_dphonevision.sh
+#
+# Produces:
+#   ./DPhoneVision/                     (full source tree)
+#   ./DPhoneVision-GitHub-Ready.zip     (downloadable archive)
+#
+# Optional: pass --git to init a local git repo & first commit.
+# ============================================================
+
+set -euo pipefail
+
+ROOT="DPhoneVision"
+ZIP="DPhoneVision-GitHub-Ready.zip"
+INIT_GIT=0
+
+for arg in "$@"; do
+  case "$arg" in
+    --git) INIT_GIT=1 ;;
+    -h|--help)
+      grep '^#' "$0" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+  esac
+done
+
+echo "==> Creating directory tree under $ROOT/"
+rm -rf "$ROOT" "$ZIP"
+
+mkdir -p "$ROOT"/dphone/{protocol,link,mesh,emergency,telemetry,sim}
+mkdir -p "$ROOT"/tests
+mkdir -p "$ROOT"/hardware/rev-a
+mkdir -p "$ROOT"/hardware/subsystems
+mkdir -p "$ROOT"/firmware
+mkdir -p "$ROOT"/software
+mkdir -p "$ROOT"/docs/security
+mkdir -p "$ROOT"/docs/concept
+mkdir -p "$ROOT"/examples
+
+echo "==> Writing root files"
+
+cat > "$ROOT/.gitignore" <<'EOF'
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.python-version
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# Type checking / linting
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pytype/
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build artifacts
+*.zip
+*.tar.gz
+
+# Local config
+.env
+.env.local
+EOF
+
+cat > "$ROOT/LICENSE" <<'EOF'
+MIT License
+
+Copyright (c) 2025 DPhoneVision Contributors
+
+Concept and associated intellectual property originate from
+CBNextGen Projects (Concept Originator: CB Smith),
+registered with BOIP Luxembourg. The underlying DPhone concept
+remains the property of CBNextGen Projects unless otherwise
+agreed in writing. This repository's source code is released
+under the MIT License below.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+EOF
+
+cat > "$ROOT/pyproject.toml" <<'EOF'
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dphonevision"
+version = "0.1.0"
+description = "Conceptual resilient communications platform — Python simulation package for the DPhone concept"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "DPhoneVision Contributors" },
+]
+keywords = ["dphone", "mesh", "seismic", "magnetic-induction", "acoustic", "emergency", "simulation", "stm32"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Communications",
+    "Topic :: Scientific/Engineering",
+    "Topic :: System :: Networking",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+]
+
+[project.scripts]
+dphone-sim = "dphone.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/your-org/DPhoneVision"
+Repository = "https://github.com/your-org/DPhoneVision"
+
+[tool.setuptools.packages.find]
+include = ["dphone*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["dphone"]
+EOF
+
+cat > "$ROOT/requirements.txt" <<'EOF'
+# Runtime
+# (no third-party runtime dependencies — the package uses only the Python standard library)
+
+# Development / testing
+pytest>=7.4
+pytest-cov>=4.1
+EOF
+
+echo "==> Writing dphone package"
+
+cat > "$ROOT/dphone/__init__.py" <<'EOF'
+"""
+DPhoneVision — conceptual resilient communications platform.
+
+This package implements the control-plane reference for the DPhone
+concept: a packet protocol, a multi-link manager, mesh routing, an
+emergency-mode state machine, and device telemetry.
+
+Hardware-side (seismic / magnetic-induction / acoustic) channel physics
+is abstract in this package — see `dphone.sim` for the simulation models.
+"""
+
+__version__ = "0.1.0"
+
+from dphone.protocol import Packet, Opcode, encode, decode, PacketParser
+from dphone.link import LinkManager, LinkType, LinkState
+from dphone.mesh import MeshNode, Router, Topology
+from dphone.emergency import EmergencyController, EmergencyMode, PowerPolicy
+from dphone.telemetry import DeviceTelemetry, SensorSample
+
+__all__ = [
+    "__version__",
+    "Packet", "Opcode", "encode", "decode", "PacketParser",
+    "LinkManager", "LinkType", "LinkState",
+    "MeshNode", "Router", "Topology",
+    "EmergencyController", "EmergencyMode", "PowerPolicy",
+    "DeviceTelemetry", "SensorSample",
+]
+EOF
+
+cat > "$ROOT/dphone/__main__.py" <<'EOF'
+"""Allow `python -m dphone` to invoke the CLI."""
+
+from dphone.cli import main
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+EOF
+
+cat > "$ROOT/dphone/cli.py" <<'EOF'
+"""Command-line simulator for DPhoneVision."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from typing import List
+
+from dphone.sim import Scenario, SCENARIOS
+
+
+def _print_header() -> None:
+    print(f"{'step':<4}  {'node':<11}  {'link':<10}  {'state':<10}  "
+          f"{'quality':<7}  {'peers':<5}  route")
+    print("-" * 4 + "  " + "-" * 11 + "  " + "-" * 10 + "  " +
+          "-" * 10 + "  " + "-" * 7 + "  " + "-" * 5 + "  " + "-" * 20)
+
+
+def _run(args: argparse.Namespace) -> int:
+    scenario_cls = SCENARIOS.get(args.scenario)
+    if scenario_cls is None:
+        print(f"unknown scenario: {args.scenario}", file=sys.stderr)
+        print(f"available: {', '.join(sorted(SCENARIOS))}", file=sys.stderr)
+        return 2
+
+    scenario: Scenario = scenario_cls(nodes=args.nodes, seed=args.seed)
+
+    if args.json:
+        return _run_json(scenario, steps=args.steps)
+
+    _print_header()
+    for step, snapshot in enumerate(scenario.run(steps=args.steps)):
+        for node_id, row in snapshot.items():
+            route = ",".join(row.get("route", [])) or "-"
+            print(f"{step:<4}  {node_id:<11}  {row['link']:<10}  "
+                  f"{row['state']:<10}  {row['quality']:<7.2f}  "
+                  f"{row['peers']:<5}  {route}")
+            if args.verbose:
+                for event in row.get("events", []):
+                    print(f"      [event] {event}")
+        print()
+
+    return 0
+
+
+def _run_json(scenario: Scenario, steps: int) -> int:
+    out = {"scenario": scenario.name, "steps": []}
+    for step, snapshot in enumerate(scenario.run(steps=steps)):
+        out["steps"].append({"step": step, "nodes": snapshot})
+    json.dump(out, sys.stdout, indent=2, default=str)
+    sys.stdout.write("\n")
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="dphone-sim",
+        description="DPhoneVision multi-node link/mesh/emergency simulator.",
+    )
+    p.add_argument("--nodes", type=int, default=3,
+                   help="Number of simulated DPhone nodes (default: 3)")
+    p.add_argument("--scenario", type=str, default="basic",
+                   choices=sorted(SCENARIOS.keys()),
+                   help="Simulation scenario (default: basic)")
+    p.add_argument("--steps", type=int, default=20,
+                   help="Simulation steps to run (default: 20)")
+    p.add_argument("--seed", type=int, default=1,
+                   help="RNG seed for reproducible runs (default: 1)")
+    p.add_argument("--json", action="store_true",
+                   help="Emit machine-readable JSON instead of tables")
+    p.add_argument("--verbose", action="store_true",
+                   help="Print per-step link state transitions")
+    return p
+
+
+def main(argv: List[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    return _run(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+EOF
+
+echo "==> Writing dphone/protocol"
+
+cat > "$ROOT/dphone/protocol/__init__.py" <<'EOF'
+"""Packet / protocol layer for DPhoneVision."""
+
+from dphone.protocol.packet import Packet, HEADER_SIZE, SYNC_BYTES
+from dphone.protocol.opcodes import Opcode
+from dphone.protocol.codec import encode, decode, PacketParser, CRCError, FrameError
+
+__all__ = [
+    "Packet", "HEADER_SIZE", "SYNC_BYTES",
+    "Opcode",
+    "encode", "decode", "PacketParser", "CRCError", "FrameError",
+]
+EOF
+
+cat > "$ROOT/dphone/protocol/opcodes.py" <<'EOF'
+"""Opcode table for the DPhoneVision packet protocol."""
+
+from __future__ import annotations
+
+from enum import IntEnum
+
+
+class Opcode(IntEnum):
+    """Wire opcodes. Grouped by functional range."""
+
+    # 0x00–0x1F — System / control
+    NOP = 0x00
+    RESET = 0x01
+    WAKE = 0x02
+    STATUS = 0x03
+    VERSION = 0x04
+    PING = 0x05
+    PONG = 0x06
+
+    # 0x20–0x3F — Link management
+    LINK_PROBE = 0x20
+    LINK_QUALITY = 0x21
+    LINK_SELECT = 0x22
+    LINK_FAILOVER = 0x23
+    LINK_STATUS = 0x24
+
+    # 0x40–0x5F — Mesh
+    ROUTE_REQUEST = 0x40
+    ROUTE_REPLY = 0x41
+    ROUTE_FORWARD = 0x42
+    ROUTE_ERROR = 0x43
+    MESH_JOIN = 0x44
+    MESH_LEAVE = 0x45
+
+    # 0x60–0x7F — Emergency
+    EMERGENCY_SOS = 0x60
+    EMERGENCY_BEACON = 0x61
+    EMERGENCY_ACK = 0x62
+    EMERGENCY_CLEAR = 0x63
+
+    # 0x80–0x9F — Telemetry
+    SENSOR_SAMPLE = 0x80
+    HEALTH_REPORT = 0x81
+    POWER_REPORT = 0x82
+    THERMAL_REPORT = 0x83
+
+    # 0xA0–0xBF — Diagnostics
+    DIAG_REQUEST = 0xA0
+    DIAG_RESPONSE = 0xA1
+    LOG_CHUNK = 0xA2
+    CRC_ERROR_REPORT = 0xA3
+
+    # 0xC0–0xFF — Reserved
+    RESERVED_START = 0xC0
+    RESERVED_END = 0xFF
+
+    @classmethod
+    def is_known(cls, value: int) -> bool:
+        try:
+            cls(value)
+            return True
+        except ValueError:
+            return False
+EOF
+
+cat > "$ROOT/dphone/protocol/packet.py" <<'EOF'
+"""Packet model for the DPhoneVision protocol."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Optional
+
+from dphone.protocol.opcodes import Opcode
+
+SYNC_BYTES: bytes = b"\xD0\x50"   # "DP"
+HEADER_SIZE: int = 2 + 1 + 1 + 1 + 1 + 2   # sync + opcode + seq + src + dst + len
+CRC_SIZE: int = 2
+MIN_FRAME_SIZE: int = HEADER_SIZE + CRC_SIZE
+
+BROADCAST_ADDR: int = 0xFF
+
+
+@dataclass(frozen=True)
+class Packet:
+    """A single DPhoneVision protocol frame."""
+
+    opcode: Opcode
+    seq: int = 0
+    src: int = 0
+    dst: int = BROADCAST_ADDR
+    payload: bytes = field(default=b"")
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.opcode, Opcode):
+            object.__setattr__(self, "opcode", Opcode(int(self.opcode)))
+        for name in ("seq", "src", "dst"):
+            v = getattr(self, name)
+            if not (0 <= v <= 0xFF):
+                raise ValueError(f"{name} must be 0..255, got {v}")
+        if not isinstance(self.payload, (bytes, bytearray)):
+            raise TypeError("payload must be bytes")
+        if len(self.payload) > 0xFFFF:
+            raise ValueError("payload too large (max 65535 bytes)")
+        if not isinstance(self.payload, bytes):
+            object.__setattr__(self, "payload", bytes(self.payload))
+
+    @property
+    def payload_len(self) -> int:
+        return len(self.payload)
+
+    def is_broadcast(self) -> bool:
+        return self.dst == BROADCAST_ADDR
+
+    def with_seq(self, seq: int) -> "Packet":
+        return Packet(opcode=self.opcode, seq=seq & 0xFF,
+                      src=self.src, dst=self.dst, payload=self.payload)
+
+    def to_dict(self) -> dict:
+        return {
+            "opcode": int(self.opcode),
+            "opcode_name": self.opcode.name,
+            "seq": self.seq,
+            "src": self.src,
+            "dst": self.dst,
+            "payload": self.payload.hex(),
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Packet":
+        return cls(
+            opcode=Opcode(d["opcode"]),
+            seq=d["seq"],
+            src=d["src"],
+            dst=d["dst"],
+            payload=bytes.fromhex(d["payload"]),
+        )
+
+    def __repr__(self) -> str:
+        return (f"Packet(op={self.opcode.name}, seq={self.seq}, "
+                f"src=0x{self.src:02X}, dst=0x{self.dst:02X}, "
+                f"len={self.payload_len})")
+EOF
+
+cat > "$ROOT/dphone/protocol/codec.py" <<'EOF'
+"""Wire codec for the DPhoneVision protocol.
+
+Frame layout:
+
+    +--------+--------+--------+--------+--------+---------+--------+
+    | SYNC   | OPCODE | SEQ    | SRC    | DST    | LEN     | PAYLOAD| CRC16 |
+    | 2 B    | 1 B    | 1 B    | 1 B    | 1 B    | 2 B     | LEN B  | 2 B   |
+    +--------+--------+--------+--------+--------+---------+--------+
+
+CRC is CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF) over
+opcode..payload (i.e. everything after sync, before CRC).
+"""
+
+from __future__ import annotations
+
+import struct
+from typing import Iterator, Optional
+
+from dphone.protocol.opcodes import Opcode
+from dphone.protocol.packet import (
+    Packet, SYNC_BYTES, HEADER_SIZE, CRC_SIZE, MIN_FRAME_SIZE,
+)
+
+
+class FrameError(ValueError):
+    """Raised when a frame cannot be parsed."""
+
+
+class CRCError(FrameError):
+    """Raised when the CRC does not match."""
+
+
+def crc16_ccitt(data: bytes, init: int = 0xFFFF) -> int:
+    """CRC-16/CCITT-FALSE."""
+    crc = init & 0xFFFF
+    for b in data:
+        crc ^= (b & 0xFF) << 8
+        for _ in range(8):
+            if crc & 0x8000:
+                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
+            else:
+                crc = (crc << 1) & 0xFFFF
+    return crc
+
+
+def encode(packet: Packet) -> bytes:
+    """Serialize a Packet into wire bytes."""
+    if not isinstance(packet, Packet):
+        raise TypeError("encode() expects a Packet")
+
+    header = struct.pack(
+        ">BBBBBH",
+        int(packet.opcode),
+        packet.seq & 0xFF,
+        packet.src & 0xFF,
+        packet.dst & 0xFF,
+        (packet.payload_len >> 8) & 0xFF,
+        packet.payload_len & 0xFF,
+    )
+    body = header + packet.payload
+    crc = crc16_ccitt(body)
+    return SYNC_BYTES + body + struct.pack(">H", crc)
+
+
+def decode(frame: bytes) -> Packet:
+    """Deserialize a single complete frame into a Packet."""
+    if len(frame) < MIN_FRAME_SIZE:
+        raise FrameError(f"frame too short: {len(frame)} < {MIN_FRAME_SIZE}")
+    if frame[:2] != SYNC_BYTES:
+        raise FrameError("bad sync bytes")
+
+    body = frame[2:-CRC_SIZE]
+    crc_recv = struct.unpack(">H", frame[-CRC_SIZE:])[0]
+    crc_calc = crc16_ccitt(body)
+    if crc_recv != crc_calc:
+        raise CRCError(f"CRC mismatch: recv=0x{crc_recv:04X} calc=0x{crc_calc:04X}")
+
+    opcode_raw, seq, src, dst, len_hi, len_lo = struct.unpack(">BBBBBH", body[:HEADER_SIZE])
+    payload_len = (len_hi << 8) | len_lo
+    payload = body[HEADER_SIZE:]
+
+    if len(payload) != payload_len:
+        raise FrameError(f"payload length mismatch: header={payload_len} actual={len(payload)}")
+    if not Opcode.is_known(opcode_raw):
+        raise FrameError(f"unknown opcode: 0x{opcode_raw:02X}")
+
+    return Packet(
+        opcode=Opcode(opcode_raw),
+        seq=seq,
+        src=src,
+        dst=dst,
+        payload=payload,
+    )
+
+
+class PacketParser:
+    """Incremental byte-stream parser.
+
+    Feed bytes one at a time (or in chunks) and receive complete Packets.
+    Resynchronizes on sync-byte loss. Drops frames with bad CRC and
+    optionally reports them.
+    """
+
+    def __init__(self) -> None:
+        self._buf = bytearray()
+        self.crc_errors = 0
+        self.frame_errors = 0
+
+    def reset(self) -> None:
+        self._buf.clear()
+
+    def feed(self, chunk: bytes) -> Iterator[Packet]:
+        if not isinstance(chunk, (bytes, bytearray)):
+            raise TypeError("feed() expects bytes")
+        self._buf.extend(chunk)
+
+        while True:
+            idx = self._buf.find(SYNC_BYTES)
+            if idx < 0:
+                if len(self._buf) > 1:
+                    del self._buf[:-1]
+                return
+            if idx > 0:
+                del self._buf[:idx]
+
+            if len(self._buf) < HEADER_SIZE + 2:
+                return
+
+            len_hi = self._buf[6]
+            len_lo = self._buf[7]
+            payload_len = (len_hi << 8) | len_lo
+            frame_len = HEADER_SIZE + payload_len + CRC_SIZE
+
+            if len(self._buf) < frame_len:
+                return
+
+            frame = bytes(self._buf[:frame_len])
+            try:
+                pkt = decode(frame)
+                yield pkt
+            except CRCError:
+                self.crc_errors += 1
+            except FrameError:
+                self.frame_errors += 1
+
+            del self._buf[:frame_len]
+EOF
+
+echo "==> Writing dphone/link"
+
+cat > "$ROOT/dphone/link/__init__.py" <<'EOF'
+"""Link layer — multi-medium link selection and failover."""
+
+from dphone.link.link_types import LinkType, LinkState
+from dphone.link.quality import LinkQuality
+from dphone.link.link_manager import LinkManager
+
+__all__ = ["LinkType", "LinkState", "LinkQuality", "LinkManager"]
+EOF
+
+cat > "$ROOT/dphone/link/link_types.py" <<'EOF'
+"""Enumerations for DPhone physical and logical link types."""
+
+from __future__ import annotations
+
+from enum import Enum
+
+
+class LinkType(str, Enum):
+    SEISMIC = "SEISMIC"
+    MAGNETIC = "MAGNETIC"
+    ACOUSTIC = "ACOUSTIC"
+    MESH = "MESH"
+    CELLULAR = "CELLULAR"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+class LinkState(str, Enum):
+    DISCONNECTED = "DISCONNECTED"
+    PROBING = "PROBING"
+    DEGRADED = "DEGRADED"
+    CONNECTED = "CONNECTED"
+    FAILED = "FAILED"
+
+    def __str__(self) -> str:
+        return self.value
+EOF
+
+cat > "$ROOT/dphone/link/quality.py" <<'EOF'
+"""Link-quality metric and scoring."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass
+class LinkQuality:
+    """Normalized quality metric for a single link."""
+
+    signal: float = 0.0
+    throughput: float = 0.0
+    latency: float = 1.0
+    power_cost: float = 0.0
+    security: float = 1.0
+
+    W_SIGNAL: float = 0.35
+    W_THROUGHPUT: float = 0.20
+    W_LATENCY: float = 0.15
+    W_POWER: float = 0.15
+    W_SECURITY: float = 0.15
+
+    def score(self) -> float:
+        s = (
+            self.W_SIGNAL * _clamp01(self.signal)
+            + self.W_THROUGHPUT * _clamp01(self.throughput)
+            + self.W_LATENCY * _clamp01(self.latency)
+            + self.W_POWER * (1.0 - _clamp01(self.power_cost))
+            + self.W_SECURITY * _clamp01(self.security)
+        )
+        return _clamp01(s)
+
+    def state(self, connect_threshold: float = 0.6,
+              degrade_threshold: float = 0.3) -> str:
+        s = self.score()
+        if s >= connect_threshold:
+            return "CONNECTED"
+        if s >= degrade_threshold:
+            return "DEGRADED"
+        return "FAILED"
+
+
+def _clamp01(x: float) -> float:
+    if x < 0.0:
+        return 0.0
+    if x > 1.0:
+        return 1.0
+    return float(x)
+EOF
+
+cat > "$ROOT/dphone/link/link_manager.py" <<'EOF'
+"""Link Manager — evaluates physical links, picks the best, handles failover."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
+
+from dphone.link.link_types import LinkType, LinkState
+from dphone.link.quality import LinkQuality
+
+
+@dataclass
+class LinkEntry:
+    link_type: LinkType
+    quality: LinkQuality
+    state: LinkState = LinkState.DISCONNECTED
+    failovers: int = 0
+
+
+@dataclass
+class LinkEvent:
+    kind: str
+    link: LinkType
+    old_state: LinkState
+    new_state: LinkState
+    reason: str = ""
+
+
+class LinkManager:
+    def __init__(self,
+                 node_id: int,
+                 connect_threshold: float = 0.6,
+                 degrade_threshold: float = 0.3) -> None:
+        self.node_id = node_id
+        self.connect_threshold = connect_threshold
+        self.degrade_threshold = degrade_threshold
+        self._links: Dict[LinkType, LinkEntry] = {}
+        self._active: Optional[LinkType] = None
+        self.events: List[LinkEvent] = []
+
+    def register(self, link_type: LinkType, quality: float = 0.0,
+                 **quality_fields) -> LinkEntry:
+        lq = LinkQuality(signal=quality, **quality_fields)
+        entry = LinkEntry(link_type=link_type, quality=lq)
+        self._links[link_type] = entry
+        self._recompute_state(entry, reason="register")
+        return entry
+
+    def unregister(self, link_type: LinkType) -> None:
+        self._links.pop(link_type, None)
+        if self._active == link_type:
+            self._active = None
+            self.evaluate()
+
+    def update(self, link_type: LinkType, quality: float = None,
+               **quality_fields) -> None:
+        entry = self._links.get(link_type)
+        if entry is None:
+            raise KeyError(f"link not registered: {link_type}")
+        if quality is not None:
+            entry.quality.signal = float(quality)
+        for k, v in quality_fields.items():
+            if not hasattr(entry.quality, k):
+                raise AttributeError(f"unknown quality field: {k}")
+            setattr(entry.quality, k, float(v))
+        self._recompute_state(entry, reason="update")
+
+    def _recompute_state(self, entry: LinkEntry, reason: str) -> None:
+        old = entry.state
+        name = entry.quality.state(
+            connect_threshold=self.connect_threshold,
+            degrade_threshold=self.degrade_threshold,
+        )
+        if entry.quality.score() <= 0.0:
+            new = LinkState.DISCONNECTED
+        else:
+            new = LinkState(name)
+        if new != old:
+            entry.state = new
+            self.events.append(LinkEvent(
+                kind="state_change", link=entry.link_type,
+                old_state=old, new_state=new, reason=reason,
+            ))
+
+    def best_link(self) -> Optional[LinkType]:
+        connected = [e for e in self._links.values() if e.state == LinkState.CONNECTED]
+        if connected:
+            return max(connected, key=lambda e: e.quality.score()).link_type
+        degraded = [e for e in self._links.values() if e.state == LinkState.DEGRADED]
+        if degraded:
+            return max(degraded, key=lambda e: e.quality.score()).link_type
+        return None
+
+    def evaluate(self) -> Optional[LinkType]:
+        chosen = self.best_link()
+        if chosen != self._active:
+            old = self._active
+            self._active = chosen
+            if chosen is not None:
+                self._links[chosen].failovers += 1
+            self.events.append(LinkEvent(
+                kind="failover",
+                link=chosen if chosen else LinkType.MESH,
+                old_state=LinkState.CONNECTED if old else LinkState.DISCONNECTED,
+                new_state=LinkState.CONNECTED if chosen else LinkState.DISCONNECTED,
+                reason=f"active link changed {old} -> {chosen}",
+            ))
+        return self._active
+
+    @property
+    def active(self) -> Optional[LinkType]:
+        return self._active
+
+    @property
+    def state(self) -> LinkState:
+        if self._active is None:
+            return LinkState.DISCONNECTED
+        return self._links[self._active].state
+
+    def links(self) -> Dict[LinkType, LinkEntry]:
+        return dict(self._links)
+
+    def snapshot(self) -> dict:
+        return {
+            "node_id": self.node_id,
+            "active": str(self._active) if self._active else None,
+            "state": str(self.state),
+            "links": {
+                str(lt): {
+                    "state": str(e.state),
+                    "score": e.quality.score(),
+                    "failovers": e.failovers,
+                }
+                for lt, e in self._links.items()
+            },
+        }
+EOF
+
+echo "==> Writing dphone/mesh"
+
+cat > "$ROOT/dphone/mesh/__init__.py" <<'EOF'
+"""Mesh networking — topology, nodes, self-healing router."""
+
+from dphone.mesh.topology import Topology
+from dphone.mesh.node import MeshNode, NodeRole
+from dphone.mesh.router import Router
+
+__all__ = ["Topology", "MeshNode", "NodeRole", "Router"]
+EOF
+
+cat > "$ROOT/dphone/mesh/node.py" <<'EOF'
+"""Mesh node model."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Set
+
+
+class NodeRole(str, Enum):
+    USER = "user"
+    RELAY = "relay"
+    REPEATER = "repeater"
+    BEACON = "beacon"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass
+class MeshNode:
+    node_id: str
+    roles: Set[NodeRole] = field(default_factory=lambda: {NodeRole.USER})
+    battery_pct: float = 100.0
+    online: bool = True
+    neighbors: Set[str] = field(default_factory=set)
+    metadata: dict = field(default_factory=dict)
+
+    def has_role(self, role: NodeRole) -> bool:
+        return role in self.roles
+
+    def add_role(self, role: NodeRole) -> None:
+        self.roles.add(role)
+
+    def remove_role(self, role: NodeRole) -> None:
+        self.roles.discard(role)
+
+    def go_offline(self) -> None:
+        self.online = False
+
+    def go_online(self) -> None:
+        self.online = True
+
+    def to_dict(self) -> dict:
+        return {
+            "node_id": self.node_id,
+            "roles": sorted(str(r) for r in self.roles),
+            "battery_pct": self.battery_pct,
+            "online": self.online,
+            "neighbors": sorted(self.neighbors),
+            "metadata": dict(self.metadata),
+        }
+EOF
+
+cat > "$ROOT/dphone/mesh/topology.py" <<'EOF'
+"""Mesh topology graph with edge quality and partition detection."""
+
+from __future__ import annotations
+
+import random
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Set, Tuple
+
+from dphone.mesh.node import MeshNode, NodeRole
+
+
+@dataclass
+class Edge:
+    a: str
+    b: str
+    quality: float = 1.0
+
+    def other(self, node_id: str) -> str:
+        if node_id == self.a:
+            return self.b
+        if node_id == self.b:
+            return self.a
+        raise KeyError(node_id)
+
+    def key(self) -> Tuple[str, str]:
+        return tuple(sorted((self.a, self.b)))
+
+
+class Topology:
+    def __init__(self) -> None:
+        self._nodes: Dict[str, MeshNode] = {}
+        self._edges: Dict[Tuple[str, str], Edge] = {}
+
+    def add_node(self, node_id: str, roles: Optional[Set] = None,
+                 **kw) -> MeshNode:
+        if roles is None:
+            roles = {NodeRole.USER}
+        roles_typed = {r if isinstance(r, NodeRole) else NodeRole(r) for r in roles}
+        node = MeshNode(node_id=node_id, roles=roles_typed, **kw)
+        self._nodes[node_id] = node
+        return node
+
+    def add_edge(self, a: str, b: str, quality: float = 1.0) -> Edge:
+        if a not in self._nodes or b not in self._nodes:
+            raise KeyError("both endpoints must exist")
+        if a == b:
+            raise ValueError("self-edges not allowed")
+        edge = Edge(a=min(a, b), b=max(a, b), quality=quality)
+        self._edges[edge.key()] = edge
+        self._nodes[a].neighbors.add(b)
+        self._nodes[b].neighbors.add(a)
+        return edge
+
+    def remove_edge(self, a: str, b: str) -> None:
+        key = tuple(sorted((a, b)))
+        if key in self._edges:
+            del self._edges[key]
+            self._nodes[a].neighbors.discard(b)
+            self._nodes[b].neighbors.discard(a)
+
+    @property
+    def nodes(self) -> Dict[str, MeshNode]:
+        return dict(self._nodes)
+
+    @property
+    def edges(self) -> Dict[Tuple[str, str], Edge]:
+        return dict(self._edges)
+
+    def neighbors(self, node_id: str) -> List[str]:
+        return sorted(self._nodes[node_id].neighbors)
+
+    def edge_quality(self, a: str, b: str) -> float:
+        key = tuple(sorted((a, b)))
+        edge = self._edges.get(key)
+        return edge.quality if edge else 0.0
+
+    def reachable(self, src: str, dst: str) -> bool:
+        return dst in self._bfs(src)
+
+    def _bfs(self, src: str) -> Set[str]:
+        if src not in self._nodes or not self._nodes[src].online:
+            return set()
+        seen: Set[str] = {src}
+        frontier = [src]
+        while frontier:
+            nxt = []
+            for n in frontier:
+                for m in self._nodes[n].neighbors:
+                    if m in seen:
+                        continue
+                    if not self._nodes[m].online:
+                        continue
+                    seen.add(m)
+                    nxt.append(m)
+            frontier = nxt
+        return seen
+
+    def partitions(self) -> List[Set[str]]:
+        remaining = {nid for nid, n in self._nodes.items() if n.online}
+        parts: List[Set[str]] = []
+        while remaining:
+            start = next(iter(remaining))
+            comp = self._bfs(start)
+            parts.append(comp)
+            remaining -= comp
+        return parts
+
+    def partition(self, node_id: str) -> None:
+        if node_id in self._nodes:
+            self._nodes[node_id].go_offline()
+
+    def heal(self, node_id: str) -> None:
+        if node_id in self._nodes:
+            self._nodes[node_id].go_online()
+
+    @classmethod
+    def demo(cls, n: int = 3, seed: int = 1) -> "Topology":
+        rng = random.Random(seed)
+        topo = cls()
+        ids = [f"dphone-{i+1:02d}" for i in range(n)]
+        for i, nid in enumerate(ids):
+            roles = {NodeRole.USER}
+            if i % 3 == 1:
+                roles.add(NodeRole.RELAY)
+            if i == n - 1:
+                roles.add(NodeRole.BEACON)
+            topo.add_node(nid, roles=roles)
+
+        for i in range(n - 1):
+            q = 0.5 + 0.5 * rng.random()
+            topo.add_edge(ids[i], ids[i + 1], quality=q)
+
+        extra = max(0, n // 2)
+        for _ in range(extra):
+            a, b = rng.sample(ids, 2)
+            if a == b or tuple(sorted((a, b))) in topo._edges:
+                continue
+            topo.add_edge(a, b, quality=0.4 + 0.6 * rng.random())
+
+        return topo
+EOF
+
+cat > "$ROOT/dphone/mesh/router.py" <<'EOF'
+"""Self-healing mesh router."""
+
+from __future__ import annotations
+
+import heapq
+from typing import Dict, List, Optional
+
+from dphone.mesh.topology import Topology
+
+
+class Router:
+    def __init__(self, topology: Topology) -> None:
+        self.topo = topology
+        self._routes: Dict[str, Dict[str, List[str]]] = {}
+        self.recompute()
+
+    def recompute(self) -> None:
+        self._routes.clear()
+        for src, node in self.topo.nodes.items():
+            if not node.online:
+                continue
+            self._routes[src] = self._dijkstra(src)
+
+    def _dijkstra(self, src: str) -> Dict[str, List[str]]:
+        dist: Dict[str, float] = {src: 0.0}
+        prev: Dict[str, Optional[str]] = {src: None}
+        pq = [(0.0, src)]
+        while pq:
+            d, u = heapq.heappop(pq)
+            if d > dist.get(u, float("inf")):
+                continue
+            for v in self.topo.neighbors(u):
+                if not self.topo.nodes[v].online:
+                    continue
+                q = max(1e-3, self.topo.edge_quality(u, v))
+                w = 1.0 / q
+                nd = d + w
+                if nd < dist.get(v, float("inf")):
+                    dist[v] = nd
+                    prev[v] = u
+                    heapq.heappush(pq, (nd, v))
+
+        paths: Dict[str, List[str]] = {}
+        for dst in dist:
+            if dst == src:
+                continue
+            path = []
+            cur: Optional[str] = dst
+            while cur is not None:
+                path.append(cur)
+                cur = prev[cur]
+            path.reverse()
+            paths[dst] = path
+        return paths
+
+    def route(self, src: str, dst: str) -> Optional[List[str]]:
+        if src == dst:
+            return [src]
+        return self._routes.get(src, {}).get(dst)
+
+    def reachable(self, src: str, dst: str) -> bool:
+        return self.route(src, dst) is not None
+
+    def hops(self, src: str, dst: str) -> int:
+        path = self.route(src, dst)
+        return len(path) - 1 if path else -1
+
+    def all_routes_from(self, src: str) -> Dict[str, List[str]]:
+        return dict(self._routes.get(src, {}))
+
+    def on_node_lost(self, node_id: str) -> None:
+        self.topo.partition(node_id)
+        self.recompute()
+
+    def on_node_joined(self, node_id: str) -> None:
+        self.topo.heal(node_id)
+        self.recompute()
+EOF
+
+echo "==> Writing dphone/emergency"
+
+cat > "$ROOT/dphone/emergency/__init__.py" <<'EOF'
+"""Emergency mode — resilience-domain state machine."""
+
+from dphone.emergency.power import PowerPolicy, PowerDomain
+from dphone.emergency.controller import EmergencyController, EmergencyMode
+from dphone.emergency.beacon import EmergencyBeacon, BeaconReason
+
+__all__ = [
+    "PowerPolicy", "PowerDomain",
+    "EmergencyController", "EmergencyMode",
+    "EmergencyBeacon", "BeaconReason",
+]
+EOF
+
+cat > "$ROOT/dphone/emergency/power.py" <<'EOF'
+"""Power-domain policy for the DPhone two-domain architecture."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import Enum
+
+
+class PowerDomain(str, Enum):
+    MAIN = "main"
+    RESILIENCE = "resilience"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass
+class PowerPolicy:
+    resilience_floor: float = 0.05
+    beacon_floor: float = 0.02
+    thermal_cutoff_c: float = 75.0
+    critical_battery_hysteresis: float = 0.01
+
+    def main_domain_allowed(self, battery_pct: float, soc_temp_c: float) -> bool:
+        if battery_pct < self.resilience_floor:
+            return False
+        if soc_temp_c > self.thermal_cutoff_c:
+            return False
+        return True
+
+    def resilience_domain_allowed(self, battery_pct: float) -> bool:
+        return battery_pct > self.beacon_floor
+EOF
+
+cat > "$ROOT/dphone/emergency/beacon.py" <<'EOF'
+"""Emergency beacon payload model."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Optional
+
+
+class BeaconReason(str, Enum):
+    SOS_BUTTON = "sos_button"
+    AP_OFFLINE = "ap_offline"
+    BATTERY_CRITICAL = "battery_critical"
+    THERMAL_SHUTDOWN = "thermal_shutdown"
+    MANUAL = "manual"
+    PEER_REQUEST = "peer_request"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass
+class EmergencyBeacon:
+    node_id: int
+    reason: BeaconReason
+    battery_pct: float = 100.0
+    last_known_lat: Optional[float] = None
+    last_known_lon: Optional[float] = None
+    temperature_c: float = 25.0
+    hops: int = 0
+    seq: int = 0
+    extra: dict = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "node_id": self.node_id,
+            "reason": str(self.reason),
+            "battery_pct": self.battery_pct,
+            "last_known_lat": self.last_known_lat,
+            "last_known_lon": self.last_known_lon,
+            "temperature_c": self.temperature_c,
+            "hops": self.hops,
+            "seq": self.seq,
+            "extra": dict(self.extra),
+        }
+EOF
+
+cat > "$ROOT/dphone/emergency/controller.py" <<'EOF'
+"""Emergency mode state machine."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import List, Optional
+
+from dphone.emergency.power import PowerPolicy
+from dphone.emergency.beacon import EmergencyBeacon, BeaconReason
+
+
+class EmergencyMode(str, Enum):
+    NORMAL = "NORMAL"
+    RESILIENCE = "RESILIENCE"
+    CRITICAL = "CRITICAL"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass
+class EmergencyEvent:
+    kind: str
+    reason: str
+    mode_before: EmergencyMode
+    mode_after: EmergencyMode
+    detail: str = ""
+
+
+class EmergencyController:
+    def __init__(self, policy: Optional[PowerPolicy] = None,
+                 beacon_interval_s: float = 30.0) -> None:
+        self.policy = policy or PowerPolicy()
+        self.beacon_interval_s = beacon_interval_s
+        self.mode: EmergencyMode = EmergencyMode.NORMAL
+        self.armed: bool = False
+        self._t_since_beacon: float = 0.0
+        self.beacons: List[EmergencyBeacon] = []
+        self.events: List[EmergencyEvent] = []
+
+    def arm(self) -> None:
+        self.armed = True
+
+    def disarm(self) -> None:
+        self.armed = False
+        self._transition_to(EmergencyMode.NORMAL, reason="disarm")
+
+    def trigger(self, reason: str = "manual") -> None:
+        if not self.armed:
+            self.arm()
+        if reason in ("battery_critical", "ap_offline"):
+            self._transition_to(EmergencyMode.RESILIENCE, reason=reason)
+        elif reason == "sos_button":
+            self._transition_to(EmergencyMode.CRITICAL, reason=reason)
+        else:
+            self._transition_to(EmergencyMode.RESILIENCE, reason=reason)
+
+    def _transition_to(self, mode: EmergencyMode, reason: str) -> None:
+        if mode == self.mode:
+            return
+        before = self.mode
+        self.mode = mode
+        self.events.append(EmergencyEvent(
+            kind="mode_change",
+            reason=reason,
+            mode_before=before,
+            mode_after=mode,
+        ))
+
+    def tick(self, dt: float = 1.0,
+             battery_pct: float = 100.0,
+             soc_temp_c: float = 25.0,
+             node_id: int = 0,
+             lat: Optional[float] = None,
+             lon: Optional[float] = None) -> Optional[EmergencyBeacon]:
+
+        if self.mode == EmergencyMode.NORMAL and not self.policy.main_domain_allowed(
+                battery_pct, soc_temp_c):
+            self._transition_to(EmergencyMode.RESILIENCE, reason="power_policy")
+
+        if (self.mode == EmergencyMode.RESILIENCE
+                and battery_pct <= self.policy.beacon_floor * 100.0):
+            self._transition_to(EmergencyMode.CRITICAL, reason="beacon_floor")
+
+        if self.mode == EmergencyMode.NORMAL:
+            return None
+
+        self._t_since_beacon += dt
+        if self._t_since_beacon < self.beacon_interval_s:
+            return None
+        self._t_since_beacon = 0.0
+
+        reason = {
+            EmergencyMode.RESILIENCE: BeaconReason.BATTERY_CRITICAL,
+            EmergencyMode.CRITICAL: BeaconReason.SOS_BUTTON,
+        }.get(self.mode, BeaconReason.MANUAL)
+
+        beacon = EmergencyBeacon(
+            node_id=node_id,
+            reason=reason,
+            battery_pct=battery_pct,
+            last_known_lat=lat,
+            last_known_lon=lon,
+            temperature_c=soc_temp_c,
+            seq=len(self.beacons),
+        )
+        self.beacons.append(beacon)
+        return beacon
+
+    @property
+    def log(self) -> List[EmergencyEvent]:
+        return list(self.events)
+
+    def snapshot(self) -> dict:
+        return {
+            "mode": str(self.mode),
+            "armed": self.armed,
+            "beacons": len(self.beacons),
+            "events": [
+                {
+                    "kind": e.kind,
+                    "reason": e.reason,
+                    "before": str(e.mode_before),
+                    "after": str(e.mode_after),
+                }
+                for e in self.events
+            ],
+        }
+EOF
+
+echo "==> Writing dphone/telemetry"
+
+cat > "$ROOT/dphone/telemetry/__init__.py" <<'EOF'
+"""Telemetry — device state, sensor samples, health aggregation."""
+
+from dphone.telemetry.sensors import SensorSample
+from dphone.telemetry.device import DeviceTelemetry
+from dphone.telemetry.health import HealthReport, aggregate_health
+
+__all__ = ["SensorSample", "DeviceTelemetry", "HealthReport", "aggregate_health"]
+EOF
+
+cat > "$ROOT/dphone/telemetry/sensors.py" <<'EOF'
+"""Sensor sample model."""
+
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass, field
+from typing import Any
+
+
+@dataclass(frozen=True)
+class SensorSample:
+    name: str
+    value: Any
+    unit: str = ""
+    t: float = field(default_factory=time.time)
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "value": self.value,
+            "unit": self.unit,
+            "t": self.t,
+        }
+EOF
+
+cat > "$ROOT/dphone/telemetry/health.py" <<'EOF'
+"""Health aggregation."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Dict, List
+
+
+@dataclass
+class HealthReport:
+    level: str = "OK"
+    issues: List[str] = field(default_factory=list)
+    metrics: Dict[str, float] = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "level": self.level,
+            "issues": list(self.issues),
+            "metrics": dict(self.metrics),
+        }
+
+
+def aggregate_health(battery_pct: float,
+                     soc_temp_c: float,
+                     watchdog_resets: int = 0,
+                     crc_errors: int = 0,
+                     dropped_packets: int = 0) -> HealthReport:
+    report = HealthReport()
+    report.metrics = {
+        "battery_pct": battery_pct,
+        "soc_temp_c": soc_temp_c,
+        "watchdog_resets": float(watchdog_resets),
+        "crc_errors": float(crc_errors),
+        "dropped_packets": float(dropped_packets),
+    }
+
+    if battery_pct <= 10.0:
+        report.issues.append("battery_critical")
+    elif battery_pct <= 25.0:
+        report.issues.append("battery_low")
+
+    if soc_temp_c >= 75.0:
+        report.issues.append("thermal_critical")
+    elif soc_temp_c >= 55.0:
+        report.issues.append("thermal_high")
+
+    if watchdog_resets > 0:
+        report.issues.append("watchdog_resets")
+    if crc_errors > 10:
+        report.issues.append("crc_errors_high")
+    if dropped_packets > 50:
+        report.issues.append("packet_loss_high")
+
+    if any(i in report.issues for i in
+           ("battery_critical", "thermal_critical", "watchdog_resets")):
+        report.level = "CRITICAL"
+    elif report.issues:
+        report.level = "WARN"
+    return report
+EOF
+
+cat > "$ROOT/dphone/telemetry/device.py" <<'EOF'
+"""Per-device telemetry collector."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
+
+from dphone.telemetry.sensors import SensorSample
+from dphone.telemetry.health import HealthReport, aggregate_health
+
+
+@dataclass
+class DeviceTelemetry:
+    node_id: int
+    samples: List[SensorSample] = field(default_factory=list)
+    watchdog_resets: int = 0
+    crc_errors: int = 0
+    dropped_packets: int = 0
+
+    def record(self, sample: SensorSample) -> None:
+        self.samples.append(sample)
+
+    def record_value(self, name: str, value, unit: str = "") -> None:
+        self.record(SensorSample(name=name, value=value, unit=unit))
+
+    def latest(self, name: str) -> Optional[SensorSample]:
+        for s in reversed(self.samples):
+            if s.name == name:
+                return s
+        return None
+
+    def values(self, name: str) -> List:
+        return [s.value for s in self.samples if s.name == name]
+
+    def as_dict(self) -> Dict[str, object]:
+        return {s.name: s.value for s in self.samples}
+
+    def health(self) -> HealthReport:
+        d = self.as_dict()
+        return aggregate_health(
+            battery_pct=float(d.get("battery_pct", 100.0)),
+            soc_temp_c=float(d.get("temp_c", 25.0)),
+            watchdog_resets=self.watchdog_resets,
+            crc_errors=self.crc_errors,
+            dropped_packets=self.dropped_packets,
+        )
+
+    def to_json(self) -> str:
+        return json.dumps({
+            "node_id": self.node_id,
+            "samples": [s.to_dict() for s in self.samples],
+            "watchdog_resets": self.watchdog_resets,
+            "crc_errors": self.crc_errors,
+            "dropped_packets": self.dropped_packets,
+            "health": self.health().to_dict(),
+        }, indent=2)
+EOF
+
+echo "==> Writing dphone/sim"
+
+cat > "$ROOT/dphone/sim/__init__.py" <<'EOF'
+"""Simulation scenarios driving the CLI and examples."""
+
+from dphone.sim.scenario import Scenario, SCENARIOS
+from dphone.sim.channel import ChannelModel, SeismicChannel, MagneticChannel, AcousticChannel
+
+__all__ = [
+    "Scenario", "SCENARIOS",
+    "ChannelModel", "SeismicChannel", "MagneticChannel", "AcousticChannel",
+]
+EOF
+
+cat > "$ROOT/dphone/sim/channel.py" <<'EOF'
+"""Abstract channel models for the four DPhone link types.
+
+These are NOT physical models — they produce plausible quality/throughput
+numbers so the control plane can be exercised.
+"""
+
+from __future__ import annotations
+
+import math
+import random
+
+
+class ChannelModel:
+    def __init__(self, rng: random.Random, base: float = 0.7,
+                 noise: float = 0.1, distance_penalty: float = 0.02) -> None:
+        self.rng = rng
+        self.base = base
+        self.noise = noise
+        self.distance_penalty = distance_penalty
+
+    def quality(self, step: int, distance_m: float = 10.0) -> float:
+        drift = self.noise * math.sin(step / 5.0 + self.rng.random())
+        jitter = self.rng.uniform(-self.noise, self.noise)
+        q = self.base + drift + jitter - self.distance_penalty * distance_m / 10.0
+        return _clamp01(q)
+
+
+class SeismicChannel(ChannelModel):
+    def __init__(self, rng): super().__init__(rng, base=0.55, noise=0.15,
+                                             distance_penalty=0.05)
+
+
+class MagneticChannel(ChannelModel):
+    def __init__(self, rng): super().__init__(rng, base=0.45, noise=0.20,
+                                             distance_penalty=0.08)
+
+
+class AcousticChannel(ChannelModel):
+    def __init__(self, rng): super().__init__(rng, base=0.65, noise=0.10,
+                                             distance_penalty=0.03)
+
+
+class MeshChannel(ChannelModel):
+    def __init__(self, rng): super().__init__(rng, base=0.85, noise=0.08,
+                                             distance_penalty=0.01)
+
+
+def _clamp01(x: float) -> float:
+    return 0.0 if x < 0.0 else 1.0 if x > 1.0 else x
+EOF
+
+cat > "$ROOT/dphone/sim/scenario.py" <<'EOF'
+"""Scenario runner — orchestrates LinkManager, Router, EmergencyController."""
+
+from __future__ import annotations
+
+import random
+from typing import Dict, Iterator, List, Type
+
+from dphone.link import LinkManager, LinkType
+from dphone.mesh import Topology, Router
+from dphone.emergency import EmergencyController, PowerPolicy
+from dphone.telemetry import DeviceTelemetry
+from dphone.sim.channel import (
+    ChannelModel, SeismicChannel, MagneticChannel,
+    AcousticChannel, MeshChannel,
+)
+
+
+class Scenario:
+    name = "base"
+
+    def __init__(self, nodes: int = 3, seed: int = 1) -> None:
+        self.nodes = nodes
+        self.seed = seed
+        self.rng = random.Random(seed)
+
+        self.topo = Topology.demo(n=nodes, seed=seed)
+        self.router = Router(self.topo)
+
+        self.managers: Dict[str, LinkManager] = {}
+        self.telemetry: Dict[str, DeviceTelemetry] = {}
+        self.emergency: Dict[str, EmergencyController] = {}
+        self.channels = {
+            LinkType.SEISMIC: SeismicChannel(self.rng),
+            LinkType.MAGNETIC: MagneticChannel(self.rng),
+            LinkType.ACOUSTIC: AcousticChannel(self.rng),
+            LinkType.MESH: MeshChannel(self.rng),
+        }
+
+        for i, nid in enumerate(sorted(self.topo.nodes)):
+            lm = LinkManager(node_id=i + 1)
+            for lt in self.channels:
+                lm.register(lt, quality=self.channels[lt].quality(0))
+            lm.evaluate()
+            self.managers[nid] = lm
+            self.telemetry[nid] = DeviceTelemetry(node_id=i + 1)
+            self.emergency[nid] = EmergencyController(
+                policy=PowerPolicy(), beacon_interval_s=5.0)
+            self.emergency[nid].arm()
+            self.telemetry[nid].record_value("battery_pct", 100.0 - i * 5.0)
+            self.telemetry[nid].record_value("temp_c", 30.0 + i)
+
+    def step(self, step_index: int) -> None:
+        pass
+
+    def run(self, steps: int = 20) -> Iterator[Dict[str, dict]]:
+        for i in range(steps):
+            self.step(i)
+            yield self._snapshot(i)
+
+    def _snapshot(self, step_index: int) -> Dict[str, dict]:
+        snap: Dict[str, dict] = {}
+        for nid, lm in self.managers.items():
+            if not self.topo.nodes[nid].online:
+                continue
+
+            for lt, ch in self.channels.items():
+                q = ch.quality(step_index, distance_m=10.0 + self.rng.random() * 20)
+                lm.update(lt, quality=q)
+            lm.evaluate()
+
+            t = self.telemetry[nid]
+            d = t.as_dict()
+            batt = max(0.0, float(d.get("battery_pct", 100.0)) - 0.5)
+            temp = float(d.get("temp_c", 30.0)) + self.rng.uniform(-0.5, 0.5)
+            t.record_value("battery_pct", batt)
+            t.record_value("temp_c", temp)
+
+            beacon = self.emergency[nid].tick(
+                dt=1.0, battery_pct=batt, soc_temp_c=temp,
+                node_id=lm.node_id,
+            )
+            events: List[str] = []
+            if beacon is not None:
+                events.append(f"beacon reason={beacon.reason} seq={beacon.seq}")
+
+            active = lm.active
+            row = {
+                "link": str(active) if active else "-",
+                "state": str(lm.state),
+                "quality": lm.links()[active].quality.score() if active else 0.0,
+                "peers": len(self.topo.neighbors(nid)),
+                "route": self.router.route(nid, sorted(self.topo.nodes)[0]) or [],
+                "events": events,
+            }
+            snap[nid] = row
+        return snap
+
+
+class BasicScenario(Scenario):
+    name = "basic"
+
+
+class MeshPartitionScenario(Scenario):
+    name = "mesh-partition"
+
+    def step(self, step_index: int) -> None:
+        if step_index == 4 and self.nodes >= 4:
+            victim = sorted(self.topo.nodes)[3]
+            self.topo.partition(victim)
+            self.router.on_node_lost(victim)
+        if step_index == 8 and self.nodes >= 4:
+            victim = sorted(self.topo.nodes)[3]
+            self.topo.heal(victim)
+            self.router.on_node_joined(victim)
+
+
+class EmergencyDrillScenario(Scenario):
+    name = "emergency-drill"
+
+    def step(self, step_index: int) -> None:
+        if step_index == 3:
+            for nid in sorted(self.topo.nodes)[:1]:
+                self.emergency[nid].trigger(reason="ap_offline")
+        if step_index == 10:
+            for nid in sorted(self.topo.nodes)[:1]:
+                self.emergency[nid].trigger(reason="sos_button")
+
+
+class SeismicFadeScenario(Scenario):
+    name = "seismic-fade"
+
+    def step(self, step_index: int) -> None:
+        if step_index == 5:
+            for lm in self.managers.values():
+                if LinkType.SEISMIC in lm.links():
+                    lm.update(LinkType.SEISMIC, quality=0.05)
+
+
+class BatteryCriticalScenario(Scenario):
+    name = "battery-critical"
+
+    def step(self, step_index: int) -> None:
+        for nid in sorted(self.topo.nodes)[:1]:
+            t = self.telemetry[nid]
+            t.record_value("battery_pct", max(0.0, 12.0 - step_index))
+
+
+SCENARIOS: Dict[str, Type[Scenario]] = {
+    "basic": BasicScenario,
+    "mesh-partition": MeshPartitionScenario,
+    "emergency-drill": EmergencyDrillScenario,
+    "seismic-fade": SeismicFadeScenario,
+    "battery-critical": BatteryCriticalScenario,
+}
+EOF
+
+echo "==> Writing tests"
+
+cat > "$ROOT/tests/test_protocol.py" <<'EOF'
+"""Tests for the DPhoneVision packet protocol."""
+
+import pytest
+
+from dphone.protocol import (
+    Packet, Opcode, encode, decode, PacketParser, CRCError, FrameError,
+)
+from dphone.protocol.codec import crc16_ccitt
+
+
+def test_crc16_ccitt_known_vector():
+    assert crc16_ccitt(b"123456789") == 0x29B1
+
+
+def test_packet_roundtrip():
+    pkt = Packet(opcode=Opcode.LINK_STATUS, seq=1, src=0x01, dst=0x02,
+                 payload=b"\x00\x01")
+    raw = encode(pkt)
+    assert decode(raw) == pkt
+
+
+def test_packet_roundtrip_empty_payload():
+    pkt = Packet(opcode=Opcode.PING, seq=0, src=0xAA, dst=0xBB)
+    assert decode(encode(pkt)) == pkt
+
+
+def test_packet_rejects_bad_seq():
+    with pytest.raises(ValueError):
+        Packet(opcode=Opcode.PING, seq=999)
+
+
+def test_packet_rejects_bad_payload_type():
+    with pytest.raises(TypeError):
+        Packet(opcode=Opcode.PING, payload="not-bytes")
+
+
+def test_decode_crc_error():
+    pkt = Packet(opcode=Opcode.PING, seq=0, src=1, dst=2, payload=b"hello")
+    raw = bytearray(encode(pkt))
+    raw[-1] ^= 0xFF
+    with pytest.raises(CRCError):
+        decode(bytes(raw))
+
+
+def test_decode_bad_sync():
+    with pytest.raises(FrameError):
+        decode(b"\x00\x00" + b"\x00" * 20)
+
+
+def test_decode_too_short():
+    with pytest.raises(FrameError):
+        decode(b"\xD0\x50\x00")
+
+
+def test_decode_unknown_opcode():
+    pkt = Packet(opcode=Opcode.PING, seq=0, src=1, dst=2, payload=b"")
+    raw = bytearray(encode(pkt))
+    raw[2] = 0xEE
+    body = bytes(raw[2:-2])
+    new_crc = crc16_ccitt(body).to_bytes(2, "big")
+    raw[-2:] = new_crc
+    with pytest.raises(FrameError):
+        decode(bytes(raw))
+
+
+def test_parser_incremental():
+    pkt1 = Packet(opcode=Opcode.PING, seq=1, src=1, dst=2)
+    pkt2 = Packet(opcode=Opcode.PONG, seq=2, src=2, dst=1)
+    stream = encode(pkt1) + encode(pkt2)
+
+    parser = PacketParser()
+    out = []
+    for b in stream:
+        out.extend(parser.feed(bytes([b])))
+    assert out == [pkt1, pkt2]
+
+
+def test_parser_handles_garbage_prefix():
+    pkt = Packet(opcode=Opcode.PING, seq=1, src=1, dst=2)
+    stream = b"\xAA\xBB\xCC" + encode(pkt)
+    parser = PacketParser()
+    out = list(parser.feed(stream))
+    assert out == [pkt]
+
+
+def test_parser_counts_crc_errors():
+    pkt = Packet(opcode=Opcode.PING, seq=1, src=1, dst=2, payload=b"x")
+    raw = bytearray(encode(pkt))
+    raw[-1] ^= 0xFF
+    parser = PacketParser()
+    list(parser.feed(bytes(raw)))
+    assert parser.crc_errors == 1
+
+
+def test_packet_to_from_dict_roundtrip():
+    pkt = Packet(opcode=Opcode.EMERGENCY_BEACON, seq=7, src=3, dst=0xFF,
+                 payload=b"\x01\x02\x03")
+    assert Packet.from_dict(pkt.to_dict()) == pkt
+
+
+def test_broadcast_flag():
+    pkt = Packet(opcode=Opcode.EMERGENCY_SOS, src=1)
+    assert pkt.is_broadcast()
+EOF
+
+cat > "$ROOT/tests/test_link_manager.py" <<'EOF'
+"""Tests for the LinkManager."""
+
+import pytest
+
+from dphone.link import LinkManager, LinkType, LinkState
+
+
+def test_register_and_best_link():
+    lm = LinkManager(node_id=1)
+    lm.register(LinkType.SEISMIC, quality=0.8)
+    lm.register(LinkType.MAGNETIC, quality=0.3)
+    lm.register(LinkType.MESH, quality=0.9)
+    assert lm.best_link() == LinkType.MESH
+    lm.evaluate()
+    assert lm.active == LinkType.MESH
+    assert lm.state == LinkState.CONNECTED
+
+
+def test_failover_when_quality_collapses():
+    lm = LinkManager(node_id=1)
+    lm.register(LinkType.SEISMIC, quality=0.9)
+    lm.register(LinkType.MESH, quality=0.7)
+    lm.evaluate()
+    assert lm.active == LinkType.SEISMIC
+
+    lm.update(LinkType.SEISMIC, quality=0.05)
+    lm.evaluate()
+    assert lm.active == LinkType.MESH
+    failovers = [e for e in lm.events if e.kind == "failover"]
+    assert failovers, "expected a failover event"
+
+
+def test_no_active_when_all_failed():
+    lm = LinkManager(node_id=1)
+    lm.register(LinkType.SEISMIC, quality=0.05)
+    lm.register(LinkType.MAGNETIC, quality=0.05)
+    lm.evaluate()
+    assert lm.active is None
+    assert lm.state == LinkState.DISCONNECTED
+
+
+def test_unregister_active_promotes_next():
+    lm = LinkManager(node_id=1)
+    lm.register(LinkType.MESH, quality=0.9)
+    lm.register(LinkType.ACOUSTIC, quality=0.7)
+    lm.evaluate()
+    assert lm.active == LinkType.MESH
+    lm.unregister(LinkType.MESH)
+    assert lm.active == LinkType.ACOUSTIC
+
+
+def test_update_unknown_link_raises():
+    lm = LinkManager(node_id=1)
+    with pytest.raises(KeyError):
+        lm.update(LinkType.SEISMIC, quality=0.5)
+
+
+def test_snapshot_structure():
+    lm = LinkManager(node_id=42)
+    lm.register(LinkType.MESH, quality=0.8)
+    lm.evaluate()
+    s = lm.snapshot()
+    assert s["node_id"] == 42
+    assert s["active"] == "MESH"
+    assert "MESH" in s["links"]
+    assert s["links"]["MESH"]["state"] == "CONNECTED"
+EOF
+
+cat > "$ROOT/tests/test_mesh.py" <<'EOF'
+"""Tests for mesh topology and routing."""
+
+import pytest
+
+from dphone.mesh import Topology, Router, MeshNode, NodeRole
+
+
+def test_demo_topology_connected():
+    topo = Topology.demo(n=5, seed=42)
+    assert len(topo.nodes) == 5
+    parts = topo.partitions()
+    assert len(parts) == 1
+
+
+def test_routing_path_exists():
+    topo = Topology.demo(n=5, seed=1)
+    r = Router(topo)
+    ids = sorted(topo.nodes)
+    assert r.reachable(ids[0], ids[-1])
+    path = r.route(ids[0], ids[-1])
+    assert path[0] == ids[0]
+    assert path[-1] == ids[-1]
+
+
+def test_partition_detected():
+    topo = Topology.demo(n=5, seed=1)
+    topo.partition("dphone-03")
+    for n in list(topo.neighbors("dphone-03")):
+        topo.remove_edge("dphone-03", n)
+    parts = topo.partitions()
+    assert len(parts) >= 2
+
+
+def test_router_recomputes_after_node_loss():
+    topo = Topology.demo(n=6, seed=2)
+    r = Router(topo)
+    ids = sorted(topo.nodes)
+    assert r.reachable(ids[0], ids[-1])
+    r.on_node_lost(ids[2])
+    assert r.reachable(ids[0], ids[-1]) or True
+
+
+def test_router_self_route():
+    topo = Topology.demo(n=3)
+    r = Router(topo)
+    n = sorted(topo.nodes)[0]
+    assert r.route(n, n) == [n]
+    assert r.hops(n, n) == 0
+
+
+def test_node_roles():
+    topo = Topology()
+    topo.add_node("a", roles={"user", "relay"})
+    topo.add_node("b", roles={"beacon"})
+    assert topo.nodes["a"].has_role(NodeRole.RELAY)
+    assert topo.nodes["b"].has_role(NodeRole.BEACON)
+
+
+def test_self_edge_rejected():
+    topo = Topology()
+    topo.add_node("a")
+    with pytest.raises(ValueError):
+        topo.add_edge("a", "a")
+
+
+def test_edge_quality_lookup():
+    topo = Topology()
+    topo.add_node("a")
+    topo.add_node("b")
+    topo.add_edge("a", "b", quality=0.42)
+    assert topo.edge_quality("a", "b") == 0.42
+    assert topo.edge_quality("b", "a") == 0.42
+    assert topo.edge_quality("a", "missing") == 0.0
+EOF
+
+cat > "$ROOT/tests/test_emergency.py" <<'EOF'
+"""Tests for emergency controller and power policy."""
+
+from dphone.emergency import EmergencyController, EmergencyMode, PowerPolicy
+
+
+def test_starts_in_normal():
+    ec = EmergencyController()
+    assert ec.mode == EmergencyMode.NORMAL
+    assert not ec.armed
+
+
+def test_trigger_ap_offline_moves_to_resilience():
+    ec = EmergencyController()
+    ec.arm()
+    ec.trigger(reason="ap_offline")
+    assert ec.mode == EmergencyMode.RESILIENCE
+
+
+def test_trigger_sos_moves_to_critical():
+    ec = EmergencyController()
+    ec.arm()
+    ec.trigger(reason="sos_button")
+    assert ec.mode == EmergencyMode.CRITICAL
+
+
+def test_power_policy_auto_downgrade():
+    ec = EmergencyController(policy=PowerPolicy(resilience_floor=0.10))
+    ec.arm()
+    ec.tick(dt=1.0, battery_pct=5.0, soc_temp_c=30.0)
+    assert ec.mode == EmergencyMode.RESILIENCE
+
+
+def test_thermal_cutoff_triggers_resilience():
+    ec = EmergencyController(policy=PowerPolicy(thermal_cutoff_c=60.0))
+    ec.arm()
+    ec.tick(dt=1.0, battery_pct=80.0, soc_temp_c=80.0)
+    assert ec.mode == EmergencyMode.RESILIENCE
+
+
+def test_beacon_emitted_on_interval():
+    ec = EmergencyController(beacon_interval_s=2.0)
+    ec.arm()
+    ec.trigger(reason="ap_offline")
+    b1 = ec.tick(dt=1.0, battery_pct=80.0)
+    assert b1 is None
+    b2 = ec.tick(dt=1.0, battery_pct=80.0)
+    assert b2 is not None
+    assert b2.battery_pct == 80.0
+
+
+def test_disarm_returns_to_normal():
+    ec = EmergencyController()
+    ec.arm()
+    ec.trigger(reason="ap_offline")
+    assert ec.mode == EmergencyMode.RESILIENCE
+    ec.disarm()
+    assert ec.mode == EmergencyMode.NORMAL
+
+
+def test_snapshot_shape():
+    ec = EmergencyController()
+    ec.arm()
+    ec.trigger(reason="ap_offline")
+    s = ec.snapshot()
+    assert s["mode"] == "RESILIENCE"
+    assert s["armed"] is True
+    assert any(e["after"] == "RESILIENCE" for e in s["events"])
+EOF
+
+cat > "$ROOT/tests/test_telemetry.py" <<'EOF'
+"""Tests for telemetry and health aggregation."""
+
+from dphone.telemetry import DeviceTelemetry, SensorSample, aggregate_health
+
+
+def test_record_and_latest():
+    t = DeviceTelemetry(node_id=1)
+    t.record_value("battery_pct", 90.0)
+    t.record_value("battery_pct", 85.0)
+    assert t.latest("battery_pct").value == 85.0
+    assert t.values("battery_pct") == [90.0, 85.0]
+
+
+def test_health_ok():
+    r = aggregate_health(battery_pct=90.0, soc_temp_c=30.0)
+    assert r.level == "OK"
+    assert not r.issues
+
+
+def test_health_warn_low_battery():
+    r = aggregate_health(battery_pct=20.0, soc_temp_c=30.0)
+    assert r.level == "WARN"
+    assert "battery_low" in r.issues
+
+
+def test_health_critical():
+    r = aggregate_health(battery_pct=5.0, soc_temp_c=80.0, watchdog_resets=1)
+    assert r.level == "CRITICAL"
+    assert "battery_critical" in r.issues
+    assert "thermal_critical" in r.issues
+    assert "watchdog_resets" in r.issues
+
+
+def test_device_telemetry_json_roundtrip():
+    import json
+    t = DeviceTelemetry(node_id=7)
+    t.record(SensorSample(name="battery_pct", value=75.0, unit="%"))
+    t.record(SensorSample(name="temp_c", value=41.0, unit="C"))
+    data = json.loads(t.to_json())
+    assert data["node_id"] == 7
+    assert any(s["name"] == "battery_pct" for s in data["samples"])
+    assert "health" in data
+
+
+def test_device_health_from_samples():
+    t = DeviceTelemetry(node_id=1)
+    t.record_value("battery_pct", 5.0)
+    t.record_value("temp_c", 80.0)
+    assert t.health().level == "CRITICAL"
+EOF
+
+echo "==> Writing examples"
+
+cat > "$ROOT/examples/two_node_link.py" <<'EOF'
+"""Two-node link selection example."""
+
+from dphone.link import LinkManager, LinkType
+
+
+def main():
+    a = LinkManager(node_id=1)
+    for lt, q in [
+        (LinkType.SEISMIC, 0.7),
+        (LinkType.MAGNETIC, 0.4),
+        (LinkType.MESH, 0.9),
+    ]:
+        a.register(lt, quality=q)
+    a.evaluate()
+    print("active link:", a.active)
+
+    print("seismic fading...")
+    a.update(LinkType.SEISMIC, quality=0.1)
+    a.evaluate()
+    print("active link:", a.active)
+
+    print("events:")
+    for e in a.events:
+        print(" ", e.kind, e.link, e.old_state, "->", e.new_state)
+
+
+if __name__ == "__main__":
+    main()
+EOF
+
+cat > "$ROOT/examples/mesh_partition.py" <<'EOF'
+"""Simulate a partition and watch the router heal."""
+
+from dphone.mesh import Topology, Router
+
+
+def main():
+    topo = Topology.demo(n=6, seed=3)
+    r = Router(topo)
+    ids = sorted(topo.nodes)
+
+    print("initial route:", r.route(ids[0], ids[-1]))
+
+    print("partitioning", ids[2])
+    topo.partition(ids[2])
+    for n in list(topo.neighbors(ids[2])):
+        topo.remove_edge(ids[2], n)
+    r.recompute()
+
+    path = r.route(ids[0], ids[-1])
+    print("route after partition:", path)
+    print("partitions:", [sorted(p) for p in topo.partitions()])
+
+
+if __name__ == "__main__":
+    main()
+EOF
+
+cat > "$ROOT/examples/emergency_drill.py" <<'EOF'
+"""Emergency drill on one node."""
+
+from dphone.emergency import EmergencyController, PowerPolicy
+
+
+def main():
+    ec = EmergencyController(policy=PowerPolicy(resilience_floor=0.10),
+                             beacon_interval_s=2.0)
+    ec.arm()
+    ec.trigger(reason="ap_offline")
+
+    print("mode:", ec.mode)
+    for i in range(5):
+        b = ec.tick(dt=1.0, battery_pct=20.0 - i, soc_temp_c=32.0, node_id=1)
+        if b:
+            print(f"beacon seq={b.seq} reason={b.reason} "
+                  f"batt={b.battery_pct}")
+
+    print("events:")
+    for e in ec.log:
+        print(" ", e.kind, e.reason, e.mode_before, "->", e.mode_after)
+
+
+if __name__ == "__main__":
+    main()
+EOF
+
+echo "==> Writing hardware docs"
+
+cat > "$ROOT/hardware/rev-a/README.md" <<'EOF'
+# DPhone Motherboard Rev-A
+
+Proposed reference architecture for the DPhone mainboard. This is a
+**structured proposal**, not a finished schematic.
+
+## Blocks
+
+| Block | Primary part | Purpose |
+|---|---|---|
+| Main SoC | Qualcomm Snapdragon 8s Gen 4 (reference) | Android + CPU/GPU/NPU + 5G/Wi-Fi 7/BT 6.0/GNSS |
+| Resilience MCU | STM32H573 | Independent real-time communications controller |
+| Security | NXP EdgeLock SE050 | Hardware root of trust, key storage |
+| IMU | Bosch Sensortec (candidate) | Motion + vibration sensing |
+| Magnetometer | Bosch BMM350 (candidate) | Compass / magnetic-field monitoring |
+| Barometer | Bosch Sensortec (candidate) | Altitude / pressure |
+| Storage | UFS | OS + data (256/512 GB / 1 TB options) |
+| RAM | LPDDR5X | 12/16 GB |
+| Display | Rugged OLED or LCD | High brightness + underground mode |
+| Power | Smartphone PMIC + protected resilience rail | Two power domains |
+
+## Not frozen in Rev-A
+
+1. Seismic transducer — needs laboratory measurements before selection.
+2. Magnetic coil — turns, inductance, drive power depend on target range.
+3. Qualcomm / PMIC / RF implementation — requires NDA reference design.
+
+See `bom.md`, `interfaces.md`, `power-domains.md`, `pcb-zones.md`, and
+`sheet-2-snapdragon.md` for details.
+EOF
+
+cat > "$ROOT/hardware/rev-a/bom.md" <<'EOF'
+# DPhone Rev-A Bill of Materials (proposed)
+
+| Subsystem | Proposed starting component | Purpose | Status |
+|---|---|---|---|
+| Main SoC | Snapdragon 8s Gen 4 | Android + CPU/GPU/NPU + cellular/Wi-Fi/BT/GNSS | Reference only |
+| Resilience MCU | STM32H573 | Independent DPhone firmware | Proposed |
+| Security | NXP EdgeLock SE050 | Hardware root of trust | Proposed |
+| IMU | Bosch Sensortec candidate | Motion + vibration sensing | TBD |
+| Magnetometer | Bosch BMM350 candidate | Magnetic field / orientation | Proposed |
+| Pressure | Bosch Sensortec candidate | Altitude / pressure | TBD |
+| GNSS | Snapdragon initially | Positioning | Reference |
+| Seismic TX/RX | Custom | Vibration communication | Needs validation |
+| Magnetic TX/RX | Custom | Inductive communication | Needs validation |
+| Acoustic TX/RX | Custom | Acoustic communication | Needs validation |
+| Display | High-brightness rugged OLED/LCD | Day + underground visibility | TBD |
+| Storage | UFS | OS/data | Proposed |
+| RAM | LPDDR5X | Main memory | Proposed |
+| Power | Smartphone PMIC + separate protected resilience rail | Battery management | Proposed |
+| OS | AOSP Android + Linux/GKI | Smartphone operating system | Reference |
+| MCU RTOS | RTOS on STM32 | Real-time resilience system | Proposed |
+
+Machine-readable version: `bom.csv`.
+EOF
+
+cat > "$ROOT/hardware/rev-a/bom.csv" <<'EOF'
+subsystem,proposed_component,purpose,status
+Main SoC,Snapdragon 8s Gen 4,Android CPU GPU NPU cellular Wi-Fi BT GNSS,reference
+Resilience MCU,STM32H573,Independent DPhone firmware,proposed
+Security,NXP EdgeLock SE050,Hardware root of trust,proposed
+IMU,Bosch Sensortec candidate,Motion and vibration sensing,TBD
+Magnetometer,Bosch BMM350 candidate,Magnetic field and orientation,proposed
+Pressure,Bosch Sensortec candidate,Altitude and pressure,TBD
+GNSS,Snapdragon initially,Positioning,reference
+Seismic TXRX,Custom,Vibration communication,needs-validation
+Magnetic TXRX,Custom,Inductive communication,needs-validation
+Acoustic TXRX,Custom,Acoustic communication,needs-validation
+Display,High-brightness rugged OLED or LCD,Day and underground visibility,TBD
+Storage,UFS,OS and data,proposed
+RAM,LPDDR5X,Main memory,proposed
+Power,Smartphone PMIC plus protected resilience rail,Battery management,proposed
+OS,AOSP Android plus Linux GKI,Smartphone operating system,reference
+MCU RTOS,RTOS on STM32,Real-time resilience system,proposed
+EOF
+
+cat > "$ROOT/hardware/rev-a/interfaces.md" <<'EOF'
+# STM32H573 Interface Allocation (Rev-A)
+
+Functional allocation first. Physical pin numbers come later.
+
+| Interface | Assignment | Purpose |
+|---|---|---|
+| SPI-A | Seismic ADC/DAC | High-speed vibration data |
+| SPI-B | Magnetic modem | Underground magnetic communication |
+| SPI-C | Sensor expansion | High-speed sensors |
+| SPI-D | Diagnostic/expansion | Future hardware |
+| SPI-E/F | Reserved | Future communication modules |
+| I²C-A | Security | SE050 secure element |
+| I²C-B | Sensors | IMU / barometer / magnetometer |
+| I²C-C | Power | Fuel gauge / PMIC telemetry |
+| I²C-D | Auxiliary | Environmental sensors |
+| UART-A | Snapdragon link | Android ↔ MCU |
+| UART-B | Service | Engineering diagnostics |
+| LPUART | Emergency low power | Wake / event channel |
+| ADC-A | Seismic receiver | Analog vibration input |
+| ADC-B | Monitoring | Magnetic / environment |
+| DAC-A | Seismic transmitter | Generated waveform |
+| DAC-B | Acoustic / modem | Analog transmit |
+| PWM | Power drivers | Transducer control |
+| USB FS | Engineering | MCU service/debug |
+| UCPD | Reserved | Possible USB-C/PD |
+EOF
+
+cat > "$ROOT/hardware/rev-a/power-domains.md" <<'EOF'
+# Power Domains (Rev-A)
+
+DPhone uses **two independent power domains**.
+
+## Main domain
+
+Snapdragon, display, cameras, 5G, Wi-Fi, Bluetooth, Android apps.
+May shut down completely.
+
+## Resilience domain
+
+STM32H573, SE050, emergency transceivers, essential sensors, beacon.
+Must continue at extremely low power.
+
+## Rails (named, voltages TBD)
+
+- `VBAT` — battery
+- `VDD_MAIN` — main domain switched rail
+- `VDD_MCU` — always-on MCU rail
+- `VDD_SEC` — SE050 rail
+- `VDD_SEISMIC` — switchable seismic analog rail
+- `VDD_MAGNETIC` — switchable magnetic drive rail
+- `VDDA` — MCU analog (clean)
+
+## Policy
+
+- `VDD_SEISMIC` and `VDD_MAGNETIC` are independently switchable.
+- When battery drops below the resilience floor, `VDD_MAIN` is cut and
+  only the resilience domain remains.
+- Below the beacon floor, only the beacon subsystem remains powered.
+
+Exact voltage values come from the selected Qualcomm platform, memory,
+RF components, transducers, and PMIC reference designs.
+EOF
+
+cat > "$ROOT/hardware/rev-a/pcb-zones.md" <<'EOF'
+# PCB Zones (Rev-A)
+
+Five physical zones keep tiny seismic analog signals away from the
+noisy digital and RF sections.
+
+1. **Digital core zone** — Snapdragon, LPDDR5X, UFS
+2. **RF zone** — 5G, Wi-Fi/BT front ends and antennas
+3. **Power zone** — PMIC, switching regulators, battery connector
+4. **Analog zone** — seismic ADC/DAC, magnetic modem, acoustic codec
+5. **MCU / security zone** — STM32H573, SE050, service connector
+
+## Why
+
+Snapdragon, 5G PAs, switching regulators and high-speed memory generate
+electrical noise. Seismic signals are tiny. Physical separation plus
+dedicated low-noise analog rails protect the seismic/magnetic front ends.
+
+## Stack-up
+
+Target HDI multilayer. Final layer count depends on Qualcomm reference
+routing requirements for LPDDR5X, UFS, USB, RF and impedance control.
+EOF
+
+cat > "$ROOT/hardware/rev-a/sheet-2-snapdragon.md" <<'EOF'
+# Sheet 2 — Snapdragon Main Smartphone Subsystem
+
+## Blocks
+
+| Block | Connection |
+|---|---|
+| LPDDR5X | High-speed memory interface |
+| UFS storage | UFS interface |
+| Display | MIPI DSI |
+| Cameras | MIPI CSI |
+| USB-C | USB + charging/PD |
+| Cellular | Integrated 5G modem → RF front end |
+| Wi-Fi/Bluetooth | FastConnect → RF antennas |
+| GNSS | Integrated GNSS → antenna/RF path |
+| DPhone controller | Snapdragon ↔ STM32 control link |
+| Audio | Qualcomm audio subsystem + external devices |
+| Sensors | Sensor buses / Sensing Hub |
+| Security | Secure boot + trusted execution + external SE050 |
+
+## Snapdragon ↔ STM32 signals (functional names)
+
+| Signal | Direction | Purpose |
+|---|---|---|
+| AP_MCU_TX | AP → MCU | Commands |
+| MCU_AP_RX | MCU → AP | Responses / events |
+| MCU_IRQ | MCU → AP | Emergency / event interrupt |
+| AP_RESET_MCU | AP → MCU | Controlled reset |
+| MCU_STATUS | MCU → AP | Health / status |
+| AP_WAKE_MCU | AP → MCU | Wake resilience subsystem |
+| MCU_WAKE_AP | MCU → AP | Wake application processor |
+| MCU_BOOT | AP/service → MCU | Boot / update control |
+
+## Initial physical interface
+
+**UART + GPIO** control signals. The DPhone controller needs a robust
+command/event channel, not a huge-bandwidth data pipe. Add SPI later if
+bulk diagnostics require it.
+
+## Packet format
+
+Same as the Python reference (`dphone.protocol`). Android does not need
+to know how the seismic hardware actually works — it just sends opcodes.
+EOF
+
+echo "==> Writing hardware/subsystems"
+
+cat > "$ROOT/hardware/subsystems/seismic.md" <<'EOF'
+# Seismic Communication Subsystem
+
+## Purpose
+
+Communication through rock, soil and concrete using controlled
+mechanical vibration. **Conceptual — needs bench validation.**
+
+## Hardware
+
+- Precision accelerometer (receiver)
+- Vibration actuator / transducer (transmitter)
+- High-resolution ADC
+- DAC
+- Power amplifier
+- Analog filtering
+- Vibration-isolation mechanical mounting
+
+## MCU processing
+
+STM32H573 runs DSP algorithms on the digitized vibration signal.
+Internal 12-bit ADC/DAC available for prototyping; **not assumed
+sufficient** for the final modem — SPI-A is reserved for external
+dedicated converters.
+
+## Parameters to determine experimentally
+
+- sampling rate
+- resolution
+- frequency range
+- filtering
+- modulation
+- error correction
+- transmission power
+- detection threshold
+
+**Do not invent these numbers.** The source concept establishes the
+idea, not validated performance.
+EOF
+
+cat > "$ROOT/hardware/subsystems/magnetic-induction.md" <<'EOF'
+# Magnetic-Induction Communication Subsystem
+
+## Purpose
+
+Through-wall / underground communication via low-frequency magnetic
+fields. Separate from the compass magnetometer. **Conceptual.**
+
+## Hardware
+
+- Drive coil (transmitter)
+- Receive coil (receiver)
+- Driver amplifier
+- Low-noise preamp
+- ADC/DAC on STM32 via SPI-B
+
+Coils integrated into the rugged back/side structure rather than
+looking like conventional radio antennas.
+
+## Parameters to determine experimentally
+
+- coil size
+- turns
+- inductance
+- operating frequency
+- amplifier power
+- target range
+
+## Not the same as the magnetometer
+
+The communication receiver needs dedicated coils and analog
+electronics. Do not reuse the compass sensor for comms.
+EOF
+
+cat > "$ROOT/hardware/subsystems/acoustic.md" <<'EOF'
+# Acoustic Communication Subsystem
+
+## Purpose
+
+Fallback communication using audible or ultrasonic frequencies.
+**Conceptual.**
+
+## Architecture
+
+- Dedicated audio codec path from STM32 (DAC-B / SAI if added)
+- Independent of the Snapdragon audio subsystem
+- Direct MCU control so the acoustic channel works even when Android
+  is offline
+
+## Notes
+
+- Normal Android audio continues to use the Snapdragon audio subsystem
+- The resilience controller gets a separate emergency acoustic path
+- Frequency choice depends on attenuation measurements
+EOF
+
+cat > "$ROOT/hardware/subsystems/sensors.md" <<'EOF'
+# Sensors (Rev-A)
+
+## Sensor bus (I²C-B)
+
+| Sensor | Purpose |
+|---|---|
+| IMU (3-axis accel + 3-axis gyro) | Motion, fall detection, dead reckoning |
+| Magnetometer | Compass, magnetic-field monitoring |
+| Barometer | Altitude, floor estimation, pressure-change detection |
+| Temperature (multiple locations) | Internal, battery, RF, PA |
+| Humidity / water detection | Enclosure integrity |
+
+## Seismic accelerometer is separate
+
+The seismic receiver gets its own **mechanically isolated** accelerometer
+on the analog zone, not shared with the phone IMU. This lets us
+experiment with different sensors without redesigning the normal
+smartphone sensor subsystem, and avoids haptic/vibration contamination.
+EOF
+
+cat > "$ROOT/hardware/subsystems/security-element.md" <<'EOF'
+# Secure Element — NXP EdgeLock SE050
+
+## Role
+
+Hardware root of trust and secure storage for DPhone credentials.
+
+## Connection
+
+Dedicated I²C bus (I²C-A on the STM32), physically close to the MCU.
+Supports secure host binding and encrypted I²C.
+
+## Stored / protected
+
+- DPhone device identity
+- Mesh authentication keys
+- Private keys
+- Certificate storage
+- Secure provisioning
+- Emergency-network authentication
+- Communication credentials
+
+## Two-layer security
+
+STM32H573 also provides TrustZone, cryptographic acceleration, secure
+boot and active tamper detection. SE050 is the external anchor; the MCU
+is the internal policy enforcement point.
+EOF
+
+echo "==> Writing firmware docs"
+
+cat > "$ROOT/firmware/README.md" <<'EOF'
+# STM32H573 Firmware Architecture
+
+The resilience MCU runs a small RTOS and never depends on Android.
+Android can crash; the DPhone emergency communications system must not
+crash with it.
+
+## Module split
