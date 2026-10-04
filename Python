@@ -16,7 +16,7 @@
 set -euo pipefail
 
 ROOT="DPhoneVision"
-ZIP="DPhoneVision-GitHub-Ready.zip"
+
 INIT_GIT=0
 
 for arg in "$@"; do
