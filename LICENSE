@@ -1,28 +1,76 @@
-MIT License
+CB NEXTGEN SOFTWARE — PROPRIETARY SOFTWARE LICENSE
 
-Copyright (c) 2025 DPhoneVision Contributors
+Copyright © 2026 CB NextGen Software. All Rights Reserved.
 
-Concept and associated intellectual property originate from
-CBNextGen Projects (Concept Originator: CB Smith),
-registered with BOIP Luxembourg. The underlying DPhone concept
-remains the property of CBNextGen Projects unless otherwise
-agreed in writing. This repository's source code is released
-under the MIT License below.
+Effective Date: October 4, 2026
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This Proprietary Software License Agreement ("License") governs the use, copying, modification, distribution, and other use of the software, source code, documentation, assets, designs, algorithms, and related materials contained in this repository (collectively, the "Software").
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+By accessing, downloading, copying, modifying, or using the Software, you acknowledge and agree to the terms of this License.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+1. Ownership
+
+The Software is proprietary intellectual property owned by CB NextGen Software and/or its respective rights holders.
+
+Except for the limited permissions expressly granted by this License, no ownership, copyright, trademark, patent, or other intellectual-property rights are transferred or granted.
+
+2. Permitted Use
+
+Subject to compliance with this License, you are granted a limited, non-exclusive, non-transferable, revocable license to:
+
+View and inspect the source code.
+Use the Software for personal or educational purposes.
+Modify the Software for personal, educational, or non-commercial use.
+Create private derivative works for non-commercial purposes.
+3. Restrictions
+
+Without prior written permission from CB NextGen Software, you may not:
+
+Sell, sublicense, lease, rent, or commercially distribute the Software.
+Use the Software or substantial portions of it in a commercial product or service.
+Redistribute, republish, or mirror the Software or substantial portions of the source code.
+Claim the Software or derivative works as your own.
+Remove, alter, or obscure copyright, license, or ownership notices.
+Use the Software to create or operate a competing commercial product or service.
+Reverse engineer, decompile, or disassemble the Software except where such restriction is prohibited by applicable law.
+Use proprietary portions of the Software for unauthorized training or development of artificial-intelligence or machine-learning models or datasets.
+4. Commercial Licensing
+
+Commercial use, redistribution, integration into commercial products or services, or any other use outside the permissions granted by this License requires prior written authorization from CB NextGen Software.
+
+CB NextGen Software may grant additional rights under a separate commercial license or written agreement.
+
+5. Third-Party Materials
+
+The Software may contain or depend upon third-party software, libraries, assets, or other materials that are subject to their own licenses.
+
+Such third-party materials remain governed by their respective licenses. Nothing in this License is intended to restrict rights granted under applicable third-party licenses.
+
+6. No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING, WITHOUT LIMITATION, WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, CB NEXTGEN SOFTWARE SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR EXEMPLARY DAMAGES ARISING FROM OR RELATED TO THE USE OF THE SOFTWARE.
+
+7. Termination
+
+Any rights granted under this License automatically terminate if you materially violate its terms.
+
+Upon termination, you must cease all use and distribution of the Software and, where legally required, delete copies of the Software in your possession or control.
+
+8. Reservation of Rights
+
+All rights not expressly granted under this License are reserved by CB NextGen Software.
+
+Nothing in this License shall be interpreted as granting any license or right by implication, estoppel, or otherwise.
+
+9. Governing Law
+
+This License shall be governed by and interpreted in accordance with the applicable laws of the jurisdiction in which CB NextGen Software is legally established, without regard to conflict-of-law principles.
+
+10. Contact
+
+For commercial licensing, redistribution requests, permissions, or other licensing inquiries, contact CB NextGen Software through its official website or designated contact channels.
+
+CB NextGen Software
+Copyright © 2026 CB NextGen Software. All Rights Reserved.
