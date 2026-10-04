@@ -1,0 +1,6 @@
+# Runtime
+# (no third-party runtime dependencies — the package uses only the Python standard library)
+
+# Development / testing
+pytest>=7.4
+pytest-cov>=4.1
